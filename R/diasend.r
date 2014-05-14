@@ -57,8 +57,8 @@ insulin.generate <- function(filename) {
 	# lengths)
 	#
 	# if(is.na(in.data$Basal[1])) in.data$Basal[1]=in.data$Basal[2]
-	# in.data$Basal <- na.locf(in.data$Basal, fromLast=FALSE)
-	in.data$Basal <- append(c(rep(0,length(in.data$Basal) - length(reformatted))), reformatted)
+	temp = na.locf(in.data$Basal, fromLast=FALSE)
+	in.data$Basal <- append(c(rep(0,length(in.data$Basal) - length(temp))), temp)
 	
 	
 	# Now calculate the total basal dose per row
@@ -67,7 +67,11 @@ insulin.generate <- function(filename) {
 	
 	# Nearly there - now sum up by date
 	out <- aggregate(in.data$TotalBasal, list(Date=in.data$Date), FUN = sum)
-	names(out)[2] <- "TotalBasal"
+	names(out)[1] <- "date"
+	names(out)[2] <- "total.basal"
+	
+	# and finally, transform the date column from a posix date/time to a date type (so we can merge later on)
+	out$date = as.Date(out$date)
 	out
 }
 

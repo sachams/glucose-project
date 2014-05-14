@@ -67,8 +67,8 @@ trimp.aggregate.day <- function(in.data) {
 # trimp.generate
 # Calculate all TRIMP data for all files at the given path
 #
-trimp.generate <- function(directory.mask, hr.rest, hr.max) {
-	files <- list.files(pattern=directory.mask)
+trimp.generate <- function(directory, hr.rest, hr.max) {
+	files <- list.files(path=directory, pattern="*.csv", full.names=TRUE)
 	input.data <- lapply(files, read.csv)
 	trimp.exp.data <- sapply(input.data, function(x) trimp.table.exp(x, hr.rest, hr.max))
 	trimp.duration.data <- sapply(input.data, function(x) trimp.table.duration(x))
