@@ -2,8 +2,7 @@ library(httr)
 library(jsonlite)
 library(httpuv)
 
-client.details <- list(client.id='1325', 
-					   client.secret='35003e7b2c50659526af5e3c22dc09268b245b3e')
+
 
 reformat.json <- function(data) {
 	json1 <- content(data)
@@ -39,6 +38,7 @@ strava.get.activity  <- function(strava.token, activity.id) {
 
 strava.download.streams <- function(strava.token, directory, activity.id, stream) {
 	## Download the streams to a CSV file in the specified directory
+	df <- strava.get.streams(strava.token)
 }
 
 strava.get.streams <- function(strava.token, activity.id, stream) {
