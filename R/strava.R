@@ -89,6 +89,7 @@ strava.sync.activities <- function(strava.token, directory, skip.existing=TRUE, 
 }
 
 
+
 strava.download.streams <- function(strava.token, 
 									directory, 
 									activity.id, 
@@ -96,7 +97,7 @@ strava.download.streams <- function(strava.token,
 									skip.existing=TRUE, 
 									start.time=NULL) {
 	## Build filename in the form activityid.csv
-	filename <- sprintf("%s/%d.csv", directory, activity.id)
+	filename <- sprintf("%s/%s_%d.csv", directory, format(start.time, "%Y%m%d_%H%M%S"), activity.id)
 
 	## Check if the file exists alrady. If it does, skip.
 	if(file.exists(filename) && skip.existing) {
