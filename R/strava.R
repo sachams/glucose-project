@@ -7,7 +7,7 @@ library(data.table)
 
 reformat.json <- function(data) {
 	json1 <- content(data)
-	json2 <- jsonlite::fromJSON(toJSON(json1))
+	json2 <- jsonlite::fromJSON(toJSON(json1),flatten=TRUE)
 	json2
 }
 
@@ -19,23 +19,25 @@ strava.get.athlete <- function(strava.token) {
 }
 
 strava.get.activities  <- function(strava.token) {
-	## TODO - add pagination
 	all.activities <- NULL
 	page <- 1
 	
 	repeat {
 		one.page <- strava.get.activitypage(strava.token, page)
-		if(is.null(one.page)) {
+		if(length(one.page) == 0) {
 			break
 		}
 		
-		## Er....how do you rbind the datasets? Get a wierd error...
+		all.activities <- rbind(all.activities, one.page)
+		page <- page + 1
 	}
+	
+	all.activities
 }
 
 strava.get.activitypage  <- function(strava.token, page) {
 	reqUrl <- paste('https://www.strava.com/api/v3/athlete/activities','?per_page=100&page=',page,sep='')
-	message(reqUrl)
+	## message(reqUrl)
 	req <- GET(reqUrl, 
 			   config(token = strava.token))
 	stop_for_status(req)
@@ -55,6 +57,7 @@ strava.get.activity  <- function(strava.token, activity.id) {
 
 strava.sync.activities <- function(strava.token, directory, skip.existing=TRUE, single.id=NULL) {
 	## Get a list of all the activities
+	message("Downloading list of activities...")
 	activities <- strava.get.activities(strava.token)
 	
 	## Simplify the results
