@@ -25,9 +25,59 @@ CalculateTrimpData <- function(strava.data, hr.rest, hr.max) {
 	# Add trimp data
 	strava.data <- sapply(strava.data, function(x) {AddTrimpToDataFrame(x, hr.rest, hr.max)})
 	
-	## Rebucket the data
-	
 	strava.data
+}
+
+RebucketTrimpData <- function(strava.data, bucket.width) {	
+	# Rebuckets the input data into periods specified by bucket.width
+	#
+	# Args:
+	#	strava.data: a list of strava data frames
+	#	bucket.width: width of the bucket in seconds
+	#
+	# Returns:
+	#	Returns the input data rebucketed into buckets of width bucket.width, and merged into one big data frame
+	#
+	
+	# Rebucket the data
+	rebucketed.strava.data <- sapply(strava.data, function(x) {RebucketDataFrame(x, bucket.width)})
+	
+	rebucketed.strava.data
+}
+
+RebucketDataFrame <- function(activity.data, bucket.width) {	
+	# Rebuckets the input data frame into periods specified by bucket.width
+	#
+	# Args:
+	#	strava.data: a single data frame
+	#	bucket.width: width of the bucket in seconds
+	#
+	# Returns:
+	#	Returns the input data rebucketed into buckets of width bucket.width.
+	#
+	
+	# Generate the buckets we want to resample into
+	buckets <- seq(from=activity.data[1,'abs.time'], 
+				   to=(activity.data[nrow(activity.data),'abs.time'] + bucket.width), 
+				   by=bucket.width)
+	
+	# Cut the data into these buckets
+	bucketed.time <- cut(activity.data$abs.time, buckets)
+	
+	# Now sum up trimp data by these buckets
+	bucketed.trimp.exp <- tapply(activity.data$trimp.exp, bucketed.time, sum)
+	bucketed.trimp.duration <- tapply(activity.data$trimp.duration, bucketed.time, sum)
+
+	# The rownames are the names in factor format. Turn these back into POSIX times.
+	strava.data <- sapply(strava.data, function(x) {x$abs.time <- strptime(x$abs.time,"%Y-%m-%d %H:%M:%S"); x})
+	
+	# Extract the actual times used - these are in fact the row names returned from tapply
+	time.rows <- strptime(rownames(bucketed.trimp.duration),"%Y-%m-%d %H:%M:%S")
+	
+	# And return a data frame
+	data.frame(time=time.rows,
+			   trimp.duration=bucketed.trimp.duration,
+			   trimp.exp=bucketed.trimp.exp)	
 }
 
 #
