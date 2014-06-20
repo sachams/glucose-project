@@ -1,88 +1,87 @@
+###############################################################################
 #
-# We use these packages
+# trimp.R
+# Calculates TRIMP for Strava data.
 #
-library(lubridate)
-library(zoo)
+# Author: Sacha Manson-Smith
+#
+###############################################################################
 
-
-#
-# hrReserve
-# Calculate heart rate reserve
-#
-hrReserve <- function(hr, hr.rest, hr.max) {
-	out <- (hr - hr.rest)/(hr.max - hr.rest)
-	out
-}
-
-
-#
-# trimp.exp
-# Calculate exponential TRIMP for a single HR reading
-#
-trimp.exp <- function(duration, hr, hr.rest, hr.max) {
-	hr.reserve <- hrReserve(hr, hr.rest, hr.max) 
-	out <- (duration/60) * hr.reserve * 0.64 * exp(1.92 * hr.reserve)
-	out
-}
-
-#
-# trimp.table.exp
-# Calculate TRIMP exp for a whole table of data
-#
-trimp.table.exp <- function(hrDataFrame, hr.rest, hr.max) {
-	hrDataFrame$Time <- strptime(hrDataFrame$Time,"%d/%b/%Y %H:%M:%S")
-	hrDataFrame$Diff <- append(c(0), diff(hrDataFrame$Time))
-	hrDataFrame$trimp.exp <- trimp.exp(hrDataFrame$Diff,hrDataFrame$Heart.Rate,hr.rest,hr.max)
-	trimp.exp.num <- sum(hrDataFrame$trimp.exp)
-	trimp.exp.num
-}
-
-
-#
-# trimp.table.duration
-# Calculate TRIMP duration (ie, the aggregate duration) for a whole table of data
-#
-trimp.table.duration <- function(hrDataFrame) {
-	startTime <- strptime(hrDataFrame[[1]][[1]], "%d/%b/%Y %H:%M:%S")
-	endTime <- strptime(hrDataFrame[[1]][[length(hrDataFrame[[1]])]], "%d/%b/%Y %H:%M:%S")
-	duration <- difftime(endTime, startTime, units="mins")
-	duration
-}
-
-
-#
-# trimp.aggregate.day
-# Aggregates trimp data by day
-#
-trimp.aggregate.day <- function(in.data) {
-	in.data$date <- as.Date(in.data$time)
-	out.trimp.exp <- aggregate(in.data$trimp.exp, list(date=in.data$date), FUN = sum)
-	out.trimp.duration <- aggregate(in.data$trimp.duration, list(date=in.data$date), FUN = sum)
-
-	out <- data.frame(date=out.trimp.exp$date, trimp.exp=out.trimp.exp$x, trimp.duration=out.trimp.duration$x)
-	out
+CalculateTrimpData <- function(strava.data, hr.rest, hr.max) {	
+	# Adds trimp.exp and trimp.duration columns to Strava data as returned from GetStravaActivities.
+	# trimp.exp is described here: http://fellrnr.com/wiki/TRIMP#TRIMPexp_Exponental_Heart_Rate_Scaling
+	# trimp.duration is described here: http://fellrnr.com/wiki/TRIMP#Training_Volume
+	#
+	# Args:
+	#	strava.data: Data as returned from GetStravaActivities
+	#	hr.rest: Resting heart rate
+	#	hr.max: Maximum heart rate
+	#	
+	# Returns:
+	#	Returns the input data with trimp.exp and trimp.duration columns added. Note that if no heart rate
+	#	data is present in an input data frame, trimp.exp will be NA
+	#
+	
+	# Add trimp data
+	strava.data <- sapply(strava.data, function(x) {AddTrimpToDataFrame(x, hr.rest, hr.max)})
+	
+	## Rebucket the data
+	
+	strava.data
 }
 
 #
-# trimp.generate
-# Calculate all TRIMP data for all files at the given path
+# Utility functions
 #
-trimp.generate <- function(directory, hr.rest, hr.max) {
-	files <- list.files(path=directory, pattern="*.csv", full.names=TRUE)
-	input.data <- lapply(files, read.csv)
-	trimp.exp.data <- sapply(input.data, function(x) trimp.table.exp(x, hr.rest, hr.max))
-	trimp.duration.data <- sapply(input.data, function(x) trimp.table.duration(x))
-	time.data <- strptime(sapply(input.data, function(x) x[1,1]),"%d/%b/%Y %H:%M:%S")
-	output.data = data.frame(time=time.data, trimp.exp=trimp.exp.data, trimp.duration=trimp.duration.data)
-	output.data
+
+AddTrimpToDataFrame <- function(activity.data, hr.rest, hr.max) {
+	# Calculates trimp.exp and trimp duration for a single activity data frame and adds it to the data frame.
+	# If heart rate data is not available, trimop.exp will be NA
+	#
+	# Args:
+	#	activity.data: single data.frame of activity data. Expected columns:
+	#						time
+	#						heartrate (optional)
+	#						abs.time
+	#	hr.rest: resting heart rate
+	#	hr.max: maximum heart rate
+	#
+	# Returns:
+	#	Input data with two new columns: trimp.exp and trimp.duration
+	#
+	
+	message(paste("Processing activity from date/time", activity.data[1,'abs.time']))
+	
+	# Generate a vector of durations (ie, differences between one time and the next). have to add a zero at the start to make the 
+	# vectors the same length
+	activity.data$trimp.duration <- append(c(0), diff(activity.data$time))
+	
+	# If there is no heartrate column, then don't calculate trimp.exp and instead add a columnn of NAs
+	if(is.null(activity.data$heartrate)){
+		activity.data$trimp.exp <- rep(NA, nrow(activity.data))
+	} else {
+		activity.data$trimp.exp <- CalculateTrimpExp(activity.data$trimp.duration, 
+													 activity.data$heartrate, 
+													 hr.rest,
+													 hr.max)
+	}
+	activity.data
 }
 
-#
-# trimp.generate.aggregate
-# Calculate all TRIMP data for all files at the given path, and aggregate per day
-#
-trimp.generate.aggregate <- function(directory.mask, hr.rest, hr.max) {
-	output.data <- trimp.generate(directory.mask, hr.rest, hr.max)
-	trimp.aggregate.day(output.data)
+CalculateTrimpExp <- function(duration, hr, hr.rest, hr.max) {
+	# Calculates exponential TRIMP for a single HR reading
+	#
+	# Args:
+	#	duration: duration of the activity in seconds
+	#	hr: heart rate
+	#	hr.rest: resting heart rate
+	#	hr.max: maximum heart rate
+	#
+	# Returns:
+	#	Exponential training impulse as defined here: http://fellrnr.com/wiki/TRIMP#TRIMPexp_Exponental_Heart_Rate_Scaling
+	#
+	
+	hr.reserve <- (hr - hr.rest)/(hr.max - hr.rest) 
+	trimp.exp <- (duration/60) * hr.reserve * 0.64 * exp(1.92 * hr.reserve)
+	trimp.exp
 }
-
