@@ -162,6 +162,32 @@ StravaSyncActivities <- function(strava.token,
 	} )
 }
 
+StravaLoadActivities <- function(directory) {
+	# Loads all Strava CSV files from the speciried directory and performs the following processing:
+	#	1. Removes the distance column
+	#	2. Converts time column to POSIX time
+	#
+	# Args:
+	#	directory: Directory containing the CSV files. All *.csv files will be loaded.
+	# Returns:
+	#	Returns a list of data frames, with each data frame corresponding to a separate 
+	#	Strava activity.
+	#
+	
+	# Load all files from the specified directory
+	files <- list.files(path=directory, pattern="*.csv", full.names=TRUE)
+	message(paste('Found',length(files),'files. Loading...'))
+	strava.data <- lapply(files, read.csv)
+	
+	# Remove the distance column
+	strava.data <- sapply(strava.data, function(x) {x$distance <- NULL; x})
+	
+	# Convert abs.time column to POSIX format
+	strava.data <- sapply(strava.data, function(x) {x$abs.time <- strptime(x$abs.time,"%Y-%m-%d %H:%M:%S"); x})
+	
+	strava.data
+}
+
 StravaDownloadStream <- function(strava.token, 
 									directory, 
 									activity.id, 
