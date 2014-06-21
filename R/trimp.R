@@ -7,6 +7,8 @@
 #
 ###############################################################################
 
+library(lubridate)
+
 CalculateTrimpData <- function(strava.data, hr.rest, hr.max) {  
   # Adds trimp.exp and trimp.duration columns to Strava data as returned from GetStravaActivities.
   # trimp.exp is described here: http://fellrnr.com/wiki/TRIMP#TRIMPexp_Exponental_Heart_Rate_Scaling
@@ -23,16 +25,14 @@ CalculateTrimpData <- function(strava.data, hr.rest, hr.max) {
   #
   
   # Add trimp data
-  strava.data <- sapply(strava.data, function(x) {AddTrimpToDataFrame(x, hr.rest, hr.max)})
-  
-  strava.data
+  sapply(strava.data, function(x) {AddTrimpToDataFrame(x, hr.rest, hr.max)})
 }
 
-RebucketTrimpData <- function(strava.data, bucket.width) {  
+RebucketTrimpData <- function(trimp.data, bucket.width) {  
   # Rebuckets the input data into periods specified by bucket.width
   #
   # Args:
-  #  strava.data: a list of strava data frames
+  #  trimp.data: a list of strava data frames
   #  bucket.width: width of the bucket in seconds
   #
   # Returns:
@@ -40,12 +40,10 @@ RebucketTrimpData <- function(strava.data, bucket.width) {
   #
   
   # Rebucket the data
-  rebucketed.strava.data <- sapply(strava.data, function(x) {RebucketDataFrame(x, bucket.width)})
-  
-  rebucketed.strava.data
+  lapply(trimp.data, function(x) {RebucketDataFrame(x, bucket.width)})
 }
 
-RebucketDataFrame <- function(activity.data, bucket.width) {  
+RebucketDataFrame <- function(trimp.data.frame, bucket.width) {  
   # Rebuckets the input data frame into periods specified by bucket.width
   #
   # Args:
@@ -57,39 +55,36 @@ RebucketDataFrame <- function(activity.data, bucket.width) {
   #
   
   # Generate the buckets we want to resample into
-  buckets <- seq(from=activity.data[1,'abs.time'], 
-           to=(activity.data[nrow(activity.data),'abs.time'] + bucket.width), 
+  buckets <- seq(from=trimp.data.frame[1,'abs.time'], 
+           to=(trimp.data.frame[nrow(trimp.data.frame),'abs.time'] + bucket.width), 
            by=bucket.width)
   
   # Cut the data into these buckets
-  bucketed.time <- cut(activity.data$abs.time, buckets)
+  bucketed.time <- cut(trimp.data.frame$abs.time, buckets)
   
   # Now sum up trimp data by these buckets
-  bucketed.trimp.exp <- tapply(activity.data$trimp.exp, bucketed.time, sum)
-  bucketed.trimp.duration <- tapply(activity.data$trimp.duration, bucketed.time, sum)
+  bucketed.trimp.exp <- tapply(trimp.data.frame$trimp.exp, bucketed.time, sum)
+  bucketed.trimp.duration <- tapply(trimp.data.frame$trimp.duration, bucketed.time, sum)
 
-  # The rownames are the names in factor format. Turn these back into POSIX times.
-  strava.data <- sapply(strava.data, function(x) {x$abs.time <- strptime(x$abs.time,"%Y-%m-%d %H:%M:%S"); x})
-  
-  # Extract the actual times used - these are in fact the row names returned from tapply
+  # Extract the actual times used - these are in fact the row names returned from tapply. Convert them to POSIX on the way.
   time.rows <- strptime(rownames(bucketed.trimp.duration),"%Y-%m-%d %H:%M:%S")
   
   # And return a data frame
   data.frame(time=time.rows,
          trimp.duration=bucketed.trimp.duration,
-         trimp.exp=bucketed.trimp.exp)  
+         trimp.exp=bucketed.trimp.exp)
 }
 
 #
 # Utility functions
 #
 
-AddTrimpToDataFrame <- function(activity.data, hr.rest, hr.max) {
+AddTrimpToDataFrame <- function(strava.data.frame, hr.rest, hr.max) {
   # Calculates trimp.exp and trimp duration for a single activity data frame and adds it to the data frame.
   # If heart rate data is not available, trimop.exp will be NA
   #
   # Args:
-  #  activity.data: single data.frame of activity data. Expected columns:
+  #  strava.data.frame: single data.frame of activity data. Expected columns:
   #            time
   #            heartrate (optional)
   #            abs.time
@@ -100,22 +95,22 @@ AddTrimpToDataFrame <- function(activity.data, hr.rest, hr.max) {
   #  Input data with two new columns: trimp.exp and trimp.duration
   #
   
-  message(paste("Processing activity from date/time", activity.data[1,'abs.time']))
+  message(paste("Processing activity from date/time", strava.data.frame[1,'abs.time']))
   
   # Generate a vector of durations (ie, differences between one time and the next). have to add a zero at the start to make the 
   # vectors the same length
-  activity.data$trimp.duration <- append(c(0), diff(activity.data$time))
+  strava.data.frame$trimp.duration <- append(c(0), diff(strava.data.frame$time))
   
   # If there is no heartrate column, then don't calculate trimp.exp and instead add a columnn of NAs
-  if(is.null(activity.data$heartrate)){
-    activity.data$trimp.exp <- rep(NA, nrow(activity.data))
+  if(is.null(strava.data.frame$heartrate)){
+    strava.data.frame$trimp.exp <- rep(NA, nrow(strava.data.frame))
   } else {
-    activity.data$trimp.exp <- CalculateTrimpExp(activity.data$trimp.duration, 
-                           activity.data$heartrate, 
+    strava.data.frame$trimp.exp <- CalculateTrimpExp(strava.data.frame$trimp.duration, 
+                           strava.data.frame$heartrate, 
                            hr.rest,
                            hr.max)
   }
-  activity.data
+  strava.data.frame
 }
 
 CalculateTrimpExp <- function(duration, hr, hr.rest, hr.max) {

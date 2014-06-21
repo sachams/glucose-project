@@ -127,11 +127,11 @@ StravaSyncActivities <- function(strava.token,
   #
   # Returns:
   #  Nothing
-  #
+  
   
   # Get a list of all the activities
   message("Downloading list of activities...")
-  activities <- StravaGetActiviyList(strava.token)
+  activities <- StravaGetActivityList(strava.token)
   
   # Simplify the results
   activities <- activities[,c('id','start_date_local', 'manual')]
