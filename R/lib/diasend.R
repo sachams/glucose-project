@@ -1,3 +1,103 @@
+###############################################################################
+#
+# trimp.R
+# Calculates TRIMP for Strava data.
+#
+# Author: Sacha Manson-Smith
+#
+###############################################################################
+
+library(XLConnect)
+
+
+ProcessDiasendWorkbooks <- function(input.directory, output.directory) {
+  # Converts Diasend .xls files in the given directory into two CSV files, one for cgm and one for insulin data.
+  # All .xls files are processed and any overlapping data is removed. The output files are named cgm.csv and insulin.csv.
+  #
+  # Args:
+  #  input.directory: Directory contining input .xls files
+  #  output.directory: Directory where the .csv files should be written
+  #
+  # Returns:
+  #  Nothing
+  #  
+  
+  # Get the list of .xls files and process them one by one
+  files <- list.files(path=input.directory, pattern="*.xls", full.names=TRUE)
+  message(paste('Found',length(files),'files. Loading...'))
+  
+  data <- lapply(files, ProcessOneWorkbook)
+  data
+}
+
+
+ProcessOneWorkbook <- function(filename){
+  message(paste('Processing', filename))
+  
+  # Load in the workbook
+  workbook <- loadWorkbook(filename)
+  
+  # Process CGM data
+  cgm.data <- readWorksheet(workbook, sheet='CGM', startRow=2)
+  colnames(cgm.data) <- tolower(colnames(cgm.data))
+  cgm.data$time <- strptime(cgm.data$time,"%d/%m/%Y %H:%M")
+  
+  # Process insulin data
+  insulin.data <- readWorksheet(workbook, sheet='Insulin use and carbs')
+  colnames(insulin.data) <- tolower(colnames(insulin.data))
+  insulin.data$time <- strptime(insulin.data$time,"%d/%m/%Y %H:%M")
+  
+  names(insulin.data)[names(insulin.data)=='basal.amount..u.h.'] <- 'basal'
+  names(insulin.data)[names(insulin.data)=='bolus.volume..u.'] <- 'bolus'
+  names(insulin.data)[names(insulin.data)=='immediate.volume..u.'] <- 'bolus.immediate'
+  names(insulin.data)[names(insulin.data)=='extended.volume..u.'] <- 'bolus.extended'
+  names(insulin.data)[names(insulin.data)=='duration..min.'] <- 'bolus.duration'
+  names(insulin.data)[names(insulin.data)=='carbs.g.'] <- 'carbs'
+  
+  # Return a list with the CGM and insulin data
+  list(cgm.data=cgm.data, insulin.data=insulin.data)
+}
+
+ProcessOneWorkbookXlsx <- function(filename){
+  message(paste('Processing', filename))
+  
+  # Process CGM data
+  cgm.data <- read.xlsx(filename, sheetName='CGM', startRow=2)
+  colnames(cgm.data) <- tolower(colnames(cgm.data))
+  cgm.data$time <- strptime(cgm.data$time,"%d/%m/%Y %H:%M")
+  
+  # Process insulin data
+  insulin.data <- read.xlsx(filename, sheetName='Insulin use and carbs')
+  colnames(insulin.data) <- tolower(colnames(insulin.data))
+  insulin.data$time <- strptime(insulin.data$time,"%d/%m/%Y %H:%M")
+  
+  names(insulin.data)[names(insulin.data)=='basal.amount..u.h.'] <- 'basal'
+  names(insulin.data)[names(insulin.data)=='bolus.volume..u.'] <- 'bolus'
+  names(insulin.data)[names(insulin.data)=='immediate.volume..u.'] <- 'bolus.immediate'
+  names(insulin.data)[names(insulin.data)=='extended.volume..u.'] <- 'bolus.extended'
+  names(insulin.data)[names(insulin.data)=='duration..min.'] <- 'bolus.duration'
+  names(insulin.data)[names(insulin.data)=='carbs.g.'] <- 'carbs'
+  
+  # Return a list with the CGM and insulin data
+  list(cgm.data=cgm.data, insulin.data=insulin.data)
+}
+
+ProcessDiasendCGMWorksheet <- function(workbook) {
+  # Extracts CGM data from the given workbook and returns a data frame containing the CGM data
+  #
+  # Args:
+  #  workbook: The input .xls file
+  #
+  # Returns:
+  #  CGM data in data.frame format
+  #  
+  
+  # Get the list of .xls files and process the CGM sheet one by one
+  
+}
+
+
+
 #
 # We use these packages
 #
