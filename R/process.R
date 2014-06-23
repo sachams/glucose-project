@@ -8,9 +8,10 @@
 ###############################################################################
 
 library(ggplot2)
-library(scales) # Needed for '.' in ggplot call
+library(scales) 
 library(reshape2)
 library(plyr)
+library(gridExtra)
 
 hr.rest <- 60
 hr.max <- 180
@@ -19,12 +20,11 @@ LoadAllData <- function(strava.directory, diasend.directory, strava.client.id=NU
   
   # Process latest .xls Diasend files
   if(sync.data) {
-    DiasendProcessWorkbooks(diasend.directory, skip.existing=skip.existing)
+    DiasendProcessWorkbooks(diasend.directory)
   }
   
   # Load CGM and insulin data
-  cgm.data <- DiasendLoadCGMData(diasend.directory)
-  insulin.data <- DiasendLoadInsulinData(diasend.directory)
+  diasend.data <- DiasendLoadData(diasend.directory)
   
   if(sync.data) {
     # Authenticate on Strava
@@ -50,7 +50,10 @@ LoadAllData <- function(strava.directory, diasend.directory, strava.client.id=NU
   # periods of exercise, this is a reasonable assumption.
   
   trimp.data <- CollateTrimpData(trimp.data, bucket.width, hr.rest, hr.max)  
-  list(trimp.data=trimp.data, cgm.data=cgm.data, insulin.data=insulin.data)
+  list(trimp.data=trimp.data, 
+       cgm.data=diasend.data$cgm.data, 
+       basal.data=diasend.data$basal.data, 
+       bolusandcarbs.data=diasend.data$bolusandcarbs.data)
 }
 
 
@@ -129,4 +132,17 @@ PlotMergedData <- function(merged.data, use.facets=TRUE, start.date=NULL, end.da
     
     f
   }
+  else {
+    p1 <- ggplot(merged.data, aes(x=time, y=trimp.duration)) + 
+      geom_bar(stat='identity', colour='black') +
+      scale_y_continuous(limits=c(0,500)) +
+      scale_x_datetime(limits=c(start.date, end.date))
+      
+    p2 <- ggplot(merged.data, aes(x=time, y=basal)) + 
+      geom_step() +
+    scale_x_datetime(limits=c(start.date, end.date))
+    
+    grid.arrange(p1,p2)  
+  }
 }
+
