@@ -1,7 +1,7 @@
 ###############################################################################
 #
-# trimp.R
-# Calculates TRIMP for Strava data.
+# diasend.R
+# Processes Diasend XLS spreadsheets to extract CGM and insulin data.
 #
 # Author: Sacha Manson-Smith
 #
@@ -9,7 +9,7 @@
 
 library(gdata)
 
-DiasendProcessWorkbooks <- function(directory) {
+DiasendProcessWorkbooks <- function(directory, skip.existing=TRUE) {
   # Converts Diasend .xls files in the given directory into two CSV files, one for cgm and one for insulin data per input .xls.
   # The output files are named _cgm.csv and _insulin.csv.
   #
@@ -24,8 +24,8 @@ DiasendProcessWorkbooks <- function(directory) {
   files <- list.files(path=directory, pattern="*.xls", full.names=TRUE)
   message(paste('Found',length(files),'files. Loading...'))
   
-  lapply(files, DiasendProcessCGMWorkbook)
-  lapply(files, DiasendProcessInsulinWorkbook)
+  lapply(files, function(x) DiasendProcessCGMWorkbook(x, skip.existing))
+  lapply(files, function(x) DiasendProcessInsulinWorkbook(x, skip.existing))
   
   invisible()
 }
@@ -46,7 +46,7 @@ DiasendLoadCGMData <- function(directory) {
 
   cgm.data <- lapply(cgm.files, read.csv)
   cgm.data <- do.call('rbind', cgm.data)
-  cgm.data$time <- strptime(cgm.data$time,"%Y-%m-%d %H:%M:%S")
+  cgm.data$time <- strptime(cgm.data$time,"%Y-%m-%d %H:%M:%S", tz='GMT')
 
   # Remove duplicates
   cgm.data <- cgm.data[!duplicated(cgm.data),]
@@ -70,7 +70,7 @@ DiasendLoadInsulinData <- function(directory) {
   
   insulin.data <- lapply(insulin.files, read.csv)
   insulin.data <- do.call('rbind', insulin.data)
-  insulin.data$time <- strptime(insulin.data$time,"%Y-%m-%d %H:%M:%S")
+  insulin.data$time <- strptime(insulin.data$time,"%Y-%m-%d %H:%M:%S", tz='GMT')
   
   # Remove duplicates
   insulin.data <- insulin.data[!duplicated(insulin.data),]
@@ -108,7 +108,7 @@ DiasendProcessCGMWorkbook <- function(input.filename, skip.existing=TRUE) {
     # Process CGM data
     cgm.data <- read.xls(input.filename, sheet='CGM', skip=1)
     colnames(cgm.data) <- tolower(colnames(cgm.data))
-    cgm.data$time <- strptime(cgm.data$time,"%d/%m/%Y %H:%M")
+    cgm.data$time <- strptime(cgm.data$time,"%d/%m/%Y %H:%M", tz='GMT')
     
     write.csv(cgm.data, output.filename, row.names=FALSE)
   }
@@ -145,7 +145,7 @@ DiasendProcessInsulinWorkbook <- function(input.filename, skip.existing=TRUE) {
     # Process insulin data
     insulin.data <- read.xls(input.filename, sheet='Insulin use and carbs')
     colnames(insulin.data) <- tolower(colnames(insulin.data))
-    insulin.data$time <- strptime(insulin.data$time,"%d/%m/%Y %H:%M")
+    insulin.data$time <- strptime(insulin.data$time,"%d/%m/%Y %H:%M", tz='GMT')
     
     names(insulin.data)[names(insulin.data)=='basal.amount..u.h.'] <- 'basal'
     names(insulin.data)[names(insulin.data)=='bolus.volume..u.'] <- 'bolus'

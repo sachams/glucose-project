@@ -133,9 +133,6 @@ StravaSyncActivities <- function(strava.token,
   message("Downloading list of activities...")
   activities <- StravaGetActivityList(strava.token)
   
-  # Simplify the results
-  activities <- activities[,c('id','start_date_local', 'manual')]
-  
   # See if a single activity has been specified
   if(!is.null(single.id)) {
     message(paste('Downloading only a single ID', single.id))
@@ -144,8 +141,11 @@ StravaSyncActivities <- function(strava.token,
   
   # Apply the download function to each result
   apply(activities, 1, function(x) { 
-    # Grab the start time. Used to form the filename as well as generate absolute times
-    start.time <- as.POSIXct(strptime(x$start_date_local,'%Y-%m-%dT%H:%M:%SZ'))
+    # Grab the start time. Used to form the filename as well as generate absolute times.
+    # Also calculate the time difference to GMT - if we throw this away now we can't get it back
+    # Note that the timezone field doesn't take into account daylight saving time
+    start.time <- as.POSIXct(strptime(x$start_date_local,'%Y-%m-%dT%H:%M:%SZ', tz='GMT'))
+    gmt.diff <- round(as.double((strptime(x$start_date_local,'%Y-%m-%dT%H:%M:%SZ', tz='GMT') - strptime(x$start_date,'%Y-%m-%dT%H:%M:%SZ', tz='GMT')), units='hours'))
     
     # Manual entries don't have any streams, so skip
     is.manual <- x$manual
@@ -157,7 +157,8 @@ StravaSyncActivities <- function(strava.token,
                  x$id, 
                  streams,
                  skip.existing=skip.existing,
-                 start.time=start.time)
+                 start.time=start.time,
+                 gmt.diff=gmt.diff)
     }
   } )
 }
@@ -176,14 +177,14 @@ StravaLoadActivities <- function(directory) {
   
   # Load all files from the specified directory
   files <- list.files(path=directory, pattern="*.csv", full.names=TRUE)
-  message(paste('Found',length(files),'files. Loading...'))
+  message(paste('Found',length(files),'Strava files. Loading...'))
   strava.data <- lapply(files, read.csv)
   
   # Remove the distance column
   strava.data <- sapply(strava.data, function(x) {x$distance <- NULL; x})
   
   # Convert abs.time column to POSIX format
-  strava.data <- sapply(strava.data, function(x) {x$abs.time <- strptime(x$abs.time,"%Y-%m-%d %H:%M:%S"); x})
+  strava.data <- sapply(strava.data, function(x) {x$abs.time <- strptime(x$abs.time,"%Y-%m-%d %H:%M:%S", tz='GMT'); x})
   
   strava.data
 }
@@ -193,7 +194,8 @@ StravaDownloadStream <- function(strava.token,
                   activity.id, 
                   streams, 
                   skip.existing=TRUE, 
-                  start.time=NULL) {
+                  start.time=NULL,
+                  gmt.diff=NULL) {
   # Downloads specified streams for a single activity and saves it as a CSV file.
   #
   # Args:
@@ -204,6 +206,7 @@ StravaDownloadStream <- function(strava.token,
   #  skip.existing: if TRUE, checks to see if the activity has been downloaded before and skips if so
   #  start.time:  Optional start time for the activity. If provided, an extra column (abs.time)
   #        is added to the CSV file. 
+  #  gmt.diff: Difference to GMT of the specified start time
   #
   # Returns:
   #  Nothing
@@ -233,6 +236,7 @@ StravaDownloadStream <- function(strava.token,
     # If a start date is specified, then add in an additional column with the absolute time
     if(!is.null(start.time)) {
       dt[,abs.time:=time+start.time]
+      dt[,gmt.diff:=gmt.diff]
     }  
 
     write.csv(dt, filename, row.names=FALSE)
@@ -288,4 +292,15 @@ ConvertJsonResponse <- function(data) {
   # 
   data.content <- content(data)
   jsonlite::fromJSON(toJSON(data.content),flatten=TRUE)
+}
+
+GetUTCOffset <- function(strava.timezone) {
+  # Extracts a UTC offset from a Strava timezone.
+  #
+  # Args:
+  #  strava.timezone: Strava timezone in the format "(GMT+01:00) Europe/Amsterdam"
+  #
+  # Returns:
+  #   UTC offset in hours
+  # 
 }
