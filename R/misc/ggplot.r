@@ -1,5 +1,5 @@
 library(ggplot2)
-library(scales)
+
 
 ggplot() + 
 geom_step(data=data, aes(x=date, y=total.basal)) +
