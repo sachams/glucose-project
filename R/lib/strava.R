@@ -65,6 +65,7 @@ StravaGetActivityList  <- function(strava.token) {
     # Requests are paginaged - we ask for them in batches of 100 (100 is arbitrary).
 
     request.url <- paste('https://www.strava.com/api/v3/athlete/activities','?per_page=100&page=',page,sep='')
+    # message(paste('Loading', request.url))
     response <- GET(request.url, 
             config(token = strava.token))
     stop_for_status(response)
@@ -77,7 +78,7 @@ StravaGetActivityList  <- function(strava.token) {
     
     # Add the page to the previous results. Note that any lists must be flattened 
     # for this to work (see ConvertJsonReponse internals for details)
-    all.activities <- rbind(all.activities, one.page)
+    all.activities <- rbind.fill(all.activities, one.page)
     page <- page + 1
   }
   

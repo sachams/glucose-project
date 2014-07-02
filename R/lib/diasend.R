@@ -23,7 +23,7 @@ DiasendProcessWorkbooks <- function(directory) {
   
   # Get the list of .xls files and process them one by one
   files <- list.files(path=directory, pattern="*.xls", full.names=TRUE)
-  message(paste('Found',length(files),'files. Processing...'))
+  message(paste('Found',length(files),'Diasend files. Processing...'))
   
   # Extract CGM and insulin data
   cgm.data <- lapply(files, DiasendProcessCGMWorkbook)

@@ -13,6 +13,12 @@ library(reshape2)
 library(plyr)
 library(gridExtra)
 
+source('./R/lib/strava.R')
+source('./R/lib/diasend.R')
+source('./R/trimp.R')
+source('./R/clientdetails.R')
+
+
 hr.rest <- 60
 hr.max <- 180
 
