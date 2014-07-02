@@ -147,3 +147,50 @@ DiasendProcessInsulinWorkbook <- function(input.filename) {
   
   insulin.data
 }
+
+RoundTime <- function(time, rounding) {
+  as.POSIXlt(round(as.double(testdt)/rounding)*rounding, origin='1970-01-01', tz='GMT')
+}
+
+CalculateBasalDiff <- function(actual, baseline) {
+  i.actual <- 1
+  i.baseline <- 1
+  i.out <- 1
+  
+  diff.time <- append(actual$time, baseline$time)
+  diff.time <- diff.time[!duplicated(diff.time)]
+  
+  out <- data.frame(time=diff.time, basal=rep(NA, length(diff.time)))
+  
+  previous.actual <- NA
+  previous.baseline <- NA
+  
+  while(i.actual <= nrow(actual) || i.baseline <= nrow(baseline)) {
+    if(i.baseline > nrow(baseline)) {
+      out$time[out$time==actual$time[i.actual], 'basal'] = previous.baseline - actual$basal[i.actual]
+
+      previous.actual <- actual$basal[i.actual]
+      i.actual <- i.actual + 1
+    } else if(i.actual > nrow(actual)) {
+      out$time[out$time==baseline$time[i.baseline], 'basal'] = baseline$basal[i.baseline] - previous.actual
+      
+      previous.baseline <- baseline$basal[i.baseline]
+      i.baseline <- i.baseline + 1      
+    } else if(actual$time[i.actual] <= baseline$time[i.baseline]) {
+      out$time[out$time==actual$time[i.actual], 'basal'] = previous.baseline - actual$basal[i.actual]
+      
+      previous.actual <- actual$basal[i.actual]
+      i.actual <- i.actual + 1
+    } else if(actual$time[i.actual] > baseline$time[i.baseline]) {
+      out$time[out$time==baseline$time[i.baseline], 'basal'] = baseline$basal[i.baseline] - previous.actual
+      
+      previous.baseline <- baseline$basal[i.baseline]
+      i.baseline <- i.baseline + 1      
+    } else {
+      stop("Why are we here?")
+    }
+  }
+  
+  out
+  
+}
