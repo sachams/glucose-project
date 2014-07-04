@@ -8,6 +8,7 @@
 ###############################################################################
 
 library(zoo)
+library(data.table)
 
 InsulinCompareBasalToBaseline <- function(actual.basal, baseline.filename, filter.period=300)
 {
@@ -114,46 +115,43 @@ InsulinGetBasalDiff <- function(actual.basal, baseline.basal) {
   merged.basal
 }
 
+LoadHba1c <- function(filename) {
+  read.csv(filename)
+}
 
-CalculateBasalDiff <- function(actual, baseline) {
-  i.actual <- 1
-  i.baseline <- 1
-  i.out <- 1
+CalculateHba1cFactors <- function(cgm.data, hba1c.data) {
+  # Calculate rolling average BG levels
+  buckets <- seq(from=round(head(bg$time,1),'days'), 
+                 to=round(tail(bg$time,1),'days'), 
+                 by=24*60*60)
   
-  diff.time <- append(actual$time, baseline$time)
-  diff.time <- diff.time[!duplicated(diff.time)]
+  time <- cut(bg$time, buckets)
   
-  out <- data.frame(time=diff.time, basal=rep(NA, length(diff.time)))
-  
-  previous.actual <- NA
-  previous.baseline <- NA
-  
-  while(i.actual <= nrow(actual) || i.baseline <= nrow(baseline)) {
-    if(i.baseline > nrow(baseline)) {
-      out$time[out$time==actual$time[i.actual], 'basal'] = previous.baseline - actual$basal[i.actual]
-      
-      previous.actual <- actual$basal[i.actual]
-      i.actual <- i.actual + 1
-    } else if(i.actual > nrow(actual)) {
-      out$time[out$time==baseline$time[i.baseline], 'basal'] = baseline$basal[i.baseline] - previous.actual
-      
-      previous.baseline <- baseline$basal[i.baseline]
-      i.baseline <- i.baseline + 1      
-    } else if(actual$time[i.actual] <= baseline$time[i.baseline]) {
-      out$time[out$time==actual$time[i.actual], 'basal'] = previous.baseline - actual$basal[i.actual]
-      
-      previous.actual <- actual$basal[i.actual]
-      i.actual <- i.actual + 1
-    } else if(actual$time[i.actual] > baseline$time[i.baseline]) {
-      out$time[out$time==baseline$time[i.baseline], 'basal'] = baseline$basal[i.baseline] - previous.actual
-      
-      previous.baseline <- baseline$basal[i.baseline]
-      i.baseline <- i.baseline + 1      
-    } else {
-      stop("Why are we here?")
-    }
-  }
-  
-  out
+  blood.glucose <- tapply(trimp.data.frame$trimp.exp, bucketed.time, sum)
   
 }
+
+CalculateDailyAvgBloodGlucose <- function(cgm.data) {
+  # Calculate rolling average BG levels
+  buckets <- seq(from=round(head(cgm.data$time,1),'days'), 
+                 to=round(tail(cgm.data$time,1),'days'), 
+                 by=24*60*60)
+  
+  bucketed.time <- cut(cgm.data$time, buckets)
+  
+  blood.glucose.mean <- tapply(cgm.data$blood.glucose, bucketed.time, function(x) mean(x, na.rm=TRUE))
+  blood.glucose.sd <- tapply(cgm.data$blood.glucose, bucketed.time, function(x) sd(x, na.rm=TRUE))
+  
+  # Extract the actual times used - these are in fact the row names returned from tapply. Convert them to POSIX on the way.
+  time.rows <- strptime(rownames(blood.glucose),"%Y-%m-%d", tz='GMT')
+  
+  avg.bg <- data.frame(time=time.rows, blood.glucose.mean=blood.glucose.mean, blood.glucose.sd=blood.glucose.sd, row.names=NULL)
+  
+  # Create entries for each day so we can get moving averages to work properly. Merge them in.
+  dates <- seq(from=min(avg.bg$time), to=max(avg.bg$time), by='days')
+  dates.df <- data.frame(dates)
+  
+  avg.bg <- merge(avg.bg, dates.df, by.x='time', by.y='dates')
+  avg.bg
+}
+
