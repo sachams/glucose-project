@@ -15,12 +15,19 @@ library(gridExtra)
 
 source('./R/lib/strava.R')
 source('./R/lib/diasend.R')
+source('./R/lib/bayer.R')
 source('./R/trimp.R')
+source('./R/insulin.R')
 # source('./R/clientdetails.R')
 
 
 hr.rest <- 60
 hr.max <- 180
+
+GoNoSync <- function()
+{
+  LoadAllData('~/Dropbox/Strava Data','~/Dropbox/Diasend Data', sync.data=FALSE)
+}
 
 LoadAllData <- function(strava.directory, diasend.directory, strava.client.id=NULL, strava.client.secret=NULL, sync.data=TRUE, skip.existing=TRUE) {
   
@@ -56,10 +63,24 @@ LoadAllData <- function(strava.directory, diasend.directory, strava.client.id=NU
   # periods of exercise, this is a reasonable assumption.
   
   trimp.data <- CollateTrimpData(trimp.data, bucket.width, hr.rest, hr.max)  
+
+  
+  # Load HBa1c data and calculate rolling BG averages
+  hba1c.data <- LoadHba1c('~/Dropbox/Other Diabetes Data/hba1c.csv')
+  
+  # Load glucose meter data
+  meter.data <- LoadBayer("~/Dropbox/Glucose Meter/bayer_20140707.csv")
+  
   list(trimp.data=trimp.data, 
        cgm.data=diasend.data$cgm.data, 
        basal.data=diasend.data$basal.data, 
-       bolusandcarbs.data=diasend.data$bolusandcarbs.data)
+       bolusandcarbs.data=diasend.data$bolusandcarbs.data,
+       cgmchange.data=diasend.data$cgmchange.data,
+       fillcannula.data=diasend.data$fillcannula.data,
+       hba1c.data=hba1c.data,
+       meter.data=meter.data)
+  
+
 }
 
 

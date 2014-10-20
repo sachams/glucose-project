@@ -72,8 +72,10 @@ DiasendLoadData <- function(directory) {
   cgm.data <- DiasendLoadIndividualFile(directory, 'cgm.csv')
   basal.data <- DiasendLoadIndividualFile(directory,'basal.csv')
   bolusandcarbs.data <- DiasendLoadIndividualFile(directory,'bolusandcarbs.csv')
-
-  list(cgm.data=cgm.data, basal.data=basal.data, bolusandcarbs.data=bolusandcarbs.data)
+  cgmchange.data <- DiasendLoadIndividualFile(directory,'cgmchange.csv')
+  fillcannula.data <- DiasendLoadIndividualFile(directory,'fillcannula.csv')
+  
+  list(cgm.data=cgm.data, basal.data=basal.data, bolusandcarbs.data=bolusandcarbs.data, cgmchange.data=cgmchange.data, fillcannula.data=fillcannula.data)
 }
 
 DiasendLoadIndividualFile <- function(directory, filename) {

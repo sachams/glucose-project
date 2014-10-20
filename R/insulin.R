@@ -27,7 +27,7 @@ InsulinCompareBasalToBaseline <- function(actual.basal, baseline.filename, filte
   # So run a filter to remove any differences of less than x minutes
   basal$duration <- append(diff(basal$time), c(0))  
   basal <- basal[basal$duration > filter.period,]
-
+  
   # Also remove rows where basal is zero. This might be during a pump suspend for uploading
   basal <- basal[basal$basal > 0,]
   
@@ -55,16 +55,16 @@ PlotBasalData <- function(basal.data, use.facets=TRUE, start.date=NULL, end.date
     basal.data <- basal.data[basal.data$time <= end.date,]
   }
   
-#    p1 <- ggplot(merged.data, aes(x=time, y=trimp.duration)) + 
-#      geom_bar(stat='identity', colour='black') +
-#      scale_y_continuous(limits=c(0,500)) +
-#      scale_x_datetime(limits=c(start.date, end.date))
-    
-    p2 <- ggplot(basal.data, aes(x=time, y=difference)) + 
-      geom_step() +
-      scale_x_datetime(limits=c(start.date, end.date))
-    
-#    grid.arrange(p1,p2)  
+  #    p1 <- ggplot(merged.data, aes(x=time, y=trimp.duration)) + 
+  #      geom_bar(stat='identity', colour='black') +
+  #      scale_y_continuous(limits=c(0,500)) +
+  #      scale_x_datetime(limits=c(start.date, end.date))
+  
+  p2 <- ggplot(basal.data, aes(x=time, y=difference)) + 
+    geom_step() +
+    scale_x_datetime(limits=c(start.date, end.date))
+  
+  #    grid.arrange(p1,p2)  
   p2
 }
 
@@ -116,22 +116,37 @@ InsulinGetBasalDiff <- function(actual.basal, baseline.basal) {
 }
 
 LoadHba1c <- function(filename) {
-  read.csv(filename)
+  message(paste('Loading file',filename,'...'))
+  data <- read.csv(filename)
+  data$date <- as.POSIXct(strptime(data$date,"%Y-%m-%d", tz='GMT'))
+  data
 }
 
-CalculateHba1cFactors <- function(cgm.data, hba1c.data) {
-  # Calculate rolling average BG levels
-  buckets <- seq(from=round(head(bg$time,1),'days'), 
-                 to=round(tail(bg$time,1),'days'), 
-                 by=24*60*60)
+CalculateHba1c <- function(cgm.data, x=28.7, y=-46.7, avg.period=90) {
+  # F is factor to convert between mmol/l and mg/dl
+  f <- 18.0182
   
-  time <- cut(bg$time, buckets)
+  # Average BG levels to daily and ensure each day has an entry (even if it is NA)
+  avg.bg <- CalculateDailyAvgBloodGlucose(cgm.data, avg.period)
   
-  blood.glucose <- tapply(trimp.data.frame$trimp.exp, bucketed.time, sum)
-  
+  avg.bg$hba1c <- (avg.bg$blood.glucose.rolling * f - y)/x
+  avg.bg
 }
 
-CalculateDailyAvgBloodGlucose <- function(cgm.data) {
+FitHba1c <- function(cgm.data, hba1c.data, avg.period=90) {
+  # Fits HBa1c and average BG reading using linear regression
+  
+  # Average BG levels to daily and ensure each day has an entry (even if it is NA)
+  avg.bg <- CalculateDailyAvgBloodGlucose(cgm.data, avg.period)
+
+  # Inner join on hba1c and average BG
+  data <- merge(avg.bg, hba1c.data, by.x='time', by.y='date')
+  
+  # Probably need quite a few more points before we can fit this data properly...
+  data
+}
+
+CalculateDailyAvgBloodGlucose <- function(cgm.data, avg.period) {
   # Calculate rolling average BG levels
   buckets <- seq(from=round(head(cgm.data$time,1),'days'), 
                  to=round(tail(cgm.data$time,1),'days'), 
@@ -143,7 +158,7 @@ CalculateDailyAvgBloodGlucose <- function(cgm.data) {
   blood.glucose.sd <- tapply(cgm.data$blood.glucose, bucketed.time, function(x) sd(x, na.rm=TRUE))
   
   # Extract the actual times used - these are in fact the row names returned from tapply. Convert them to POSIX on the way.
-  time.rows <- strptime(rownames(blood.glucose),"%Y-%m-%d", tz='GMT')
+  time.rows <- strptime(rownames(blood.glucose.mean),"%Y-%m-%d", tz='GMT')
   
   avg.bg <- data.frame(time=time.rows, blood.glucose.mean=blood.glucose.mean, blood.glucose.sd=blood.glucose.sd, row.names=NULL)
   
@@ -152,6 +167,14 @@ CalculateDailyAvgBloodGlucose <- function(cgm.data) {
   dates.df <- data.frame(dates)
   
   avg.bg <- merge(avg.bg, dates.df, by.x='time', by.y='dates')
+  
+  # Now calculate rolling average over given period
+  avg.bg$blood.glucose.rolling <- rollapply(avg.bg$blood.glucose.mean, 
+                                            avg.period, 
+                                            function(x) mean(x, na.rm=TRUE), 
+                                            align='r', 
+                                            fill=NA)
+
   avg.bg
 }
 
